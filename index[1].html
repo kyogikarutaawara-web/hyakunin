@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0c0c0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="百人一首">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>百人一首 対戦帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout concept: 墨色の帳面。上部に固定の4タブ、本文は区切り線の入った帳簿風パネルを縦に重ねる。金茶を唯一の強調色にし、勝敗だけ朱と松葉を使う。 */
+:root{
+  --sumi:#0c0c0e;--panel:#151518;--panel2:#1d1d21;--line:#2d2d33;
+  --washi:#ece6d9;--mute:#948e81;
+  --kin:#cba85f;--kin-ink:#17130a;--kin-soft:rgba(203,168,95,.15);
+  --shu:#e07a65;--matsu:#8db686;
+  --serif:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  --sans:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;
+  color-scheme:dark;
+}
+html,body{background:var(--sumi)}
+body{
+  margin:0;color:var(--washi);font-family:var(--sans);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 calc(48px + env(safe-area-inset-bottom,0px));
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--sumi)}
+*{box-sizing:border-box}
+html,body{width:100%;min-height:100%}
+#app{width:100%;max-width:none;margin:0;min-height:100vh}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--kin);outline-offset:2px}
+
+/* header + tabs */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--sumi);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:10px;padding:10px 0 4px}
+.mon{width:30px;height:30px;border:1.5px solid var(--kin);border-radius:50%;display:grid;place-items:center;font-family:var(--serif);font-weight:700;color:var(--kin);font-size:16px;flex:none}
+.brand h1{margin:0;font-family:var(--serif);font-weight:700;font-size:18px;letter-spacing:.12em}
+.note{margin-left:auto;font-size:11px;color:var(--mute);text-align:right}
+.note.warn{color:var(--shu)}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+.tab{min-height:46px;padding:4px 2px;background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);cursor:pointer;font-size:13px;font-weight:500;line-height:1.25}
+.tab[aria-selected=true]{color:var(--kin);border-bottom-color:var(--kin);font-weight:700}
+.tab:hover{color:var(--washi)}
+
+/* pages */
+.page{padding-top:2px}
+.page.in-r{animation:inr .22s ease-out}
+.page.in-l{animation:inl .22s ease-out}
+@keyframes inr{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}
+@keyframes inl{from{opacity:0;transform:translateX(-22px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.page.in-r,.page.in-l{animation:none}}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:14px;margin-top:14px;min-width:0}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap;margin-bottom:12px}
+.ph h2{margin:0;font-family:var(--serif);font-size:17px;font-weight:700;letter-spacing:.06em;color:var(--kin)}
+.ph-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.count{font-size:13px;color:var(--mute)}
+.count b{color:var(--washi);font-size:16px}
+.muted{color:var(--mute);font-size:13px}
+.notice{margin-top:14px;padding:10px 12px;border:1px dashed var(--kin);border-radius:4px;background:var(--kin-soft);font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.notice span{flex:1 1 220px}
+.empty{padding:22px 8px;text-align:center;color:var(--mute);font-size:14px}
+
+/* buttons / inputs */
+.btn{min-height:40px;padding:0 14px;border:1px solid var(--line);background:var(--panel2);border-radius:3px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--kin)}
+.btn.sm{min-height:32px;padding:0 10px;font-size:13px}
+.btn.pri{background:var(--kin);border-color:var(--kin);color:var(--kin-ink);font-weight:700}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.big{width:100%;min-height:52px;font-family:var(--serif);font-size:18px;letter-spacing:.2em}
+.btn.dng{color:var(--shu);border-color:rgba(224,122,101,.45)}
+.btn:disabled{opacity:.4;cursor:default}
+.icon-btn{width:40px;height:40px;display:grid;place-items:center;background:var(--panel2);border:1px solid rgba(224,122,101,.45);color:var(--shu);border-radius:3px;cursor:pointer;flex:none}
+.icon-btn:hover{background:rgba(224,122,101,.12)}
+input[type=text],select{min-height:40px;padding:0 10px;background:var(--sumi);border:1px solid var(--line);border-radius:3px;color:var(--washi);min-width:0}
+select{max-width:100%}
+input[type=text]:focus,select:focus{border-color:var(--kin)}
+input[type=checkbox]{accent-color:var(--kin);width:20px;height:20px;flex:none;margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row>.grow{flex:1 1 160px}
+
+/* grade badge */
+.gr{display:inline-block;font-size:11px;line-height:1.5;padding:0 6px;border-radius:2px;white-space:nowrap;font-weight:500}
+.g0{color:#f0b9ab;background:rgba(224,122,101,.2)}
+.g1{color:#ebd49a;background:rgba(203,168,95,.2)}
+.g2{color:#bcd9ad;background:rgba(141,182,134,.2)}
+.g3{color:#a5c4e3;background:rgba(109,143,181,.24)}
+.g4{color:#cbb8e6;background:rgba(150,120,200,.24)}
+.g5{color:#b5b0a5;background:rgba(150,145,135,.2)}
+
+/* attendance */
+.attgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.att{display:flex;align-items:center;gap:8px;min-height:46px;padding:6px 10px;border:1px solid var(--line);border-radius:3px;background:var(--panel2);cursor:pointer;min-width:0}
+.att:has(input:checked){border-color:var(--kin);background:var(--kin-soft)}
+.att .nm{font-family:var(--serif);font-weight:700;overflow-wrap:anywhere;flex:1 1 auto;min-width:0}
+
+/* fixed */
+.fixgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:10px}
+.fixnote{margin:10px 0 0;font-size:13px;color:var(--mute)}
+
+/* match cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:10px}
+.mcard{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:8px 10px;min-width:0}
+.mhead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.mt{font-family:var(--serif);font-weight:700;font-size:13px;letter-spacing:.08em}
+.chip{font-size:11px;padding:0 9px;border-radius:99px;border:1px solid;line-height:1.7;white-space:nowrap}
+.chip.live{color:var(--shu);border-color:rgba(224,122,101,.6)}
+.chip.done{color:var(--matsu);border-color:rgba(141,182,134,.6)}
+.mbody{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:6px;align-items:center;margin-top:6px}
+.vs{font-family:var(--serif);color:var(--mute);font-size:12px}
+.pcell{display:flex;flex-direction:column;gap:5px;padding:5px;border:1px solid var(--line);border-radius:3px;background:var(--panel2);min-width:0}
+.pcell.won{background:var(--kin-soft);border-color:var(--kin)}
+.pcell.lost{opacity:.55}
+.slot{display:flex;align-items:center;gap:2px 6px;flex-wrap:wrap;min-height:34px;padding:2px 4px;border-radius:3px;cursor:pointer;border:1px solid transparent;min-width:0}
+.slot:hover{border-color:var(--line)}
+.slot.sel{border-color:var(--kin);background:rgba(203,168,95,.22)}
+.slot .nm{font-family:var(--serif);font-weight:700;font-size:15px;overflow-wrap:anywhere}
+.win{width:100%;min-height:32px;padding:0 6px;font-size:13px}
+.win.on{background:var(--kin);color:var(--kin-ink);border-color:var(--kin);font-weight:700}
+.byes{display:flex;gap:8px;flex-wrap:wrap}
+.byes .slot{border:1px solid var(--line);background:var(--panel2);min-height:40px;padding:4px 10px}
+.hint{font-size:12px;color:var(--mute);margin:10px 0 0}
+.progress{font-size:13px;color:var(--mute);margin-top:14px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.progress b{color:var(--washi)}
+
+/* members */
+.list{display:flex;flex-direction:column;gap:8px}
+.mrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--line);border-radius:3px;background:var(--panel2);min-width:0}
+.mrow .who{display:flex;align-items:center;gap:8px;flex:1 1 140px;min-width:0}
+.mrow .nm{font-family:var(--serif);font-weight:700;font-size:16px;overflow-wrap:anywhere}
+.mrow .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.sample{font-size:10px;color:var(--mute);border:1px solid var(--line);border-radius:2px;padding:0 4px}
+.ngbox{border:1px solid var(--line);border-radius:3px;background:var(--panel2);padding:10px;display:flex;flex-direction:column;gap:10px}
+.ngbox+.ngbox{margin-top:10px}
+.ngtop{display:flex;gap:8px}
+.ngtop input{flex:1 1 auto}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.mchip{display:inline-flex;align-items:center;gap:6px;padding:2px 4px 2px 10px;border:1px solid var(--line);border-radius:99px;background:var(--sumi);font-size:14px}
+.mchip button{width:26px;height:26px;border-radius:50%;border:0;background:none;color:var(--mute);cursor:pointer;font-size:16px;line-height:1}
+.mchip button:hover{color:var(--shu)}
+.ngadd{display:flex;gap:8px}
+.ngadd select{flex:1 1 auto}
+.xl{display:flex;gap:8px;flex-wrap:wrap}
+.xl .btn{flex:1 1 200px}
+
+/* ranking */
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{min-height:36px;padding:0 14px;border:1px solid var(--line);background:var(--panel2);border-radius:3px;cursor:pointer;font-size:14px}
+.seg button[aria-pressed=true]{border-color:var(--kin);background:var(--kin-soft);color:var(--kin);font-weight:700}
+.ctl{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.ctl .lb{font-size:12px;color:var(--mute);letter-spacing:.1em}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:14px 0}
+.tile{border:1px solid var(--line);border-radius:3px;background:var(--panel2);padding:10px 12px;min-width:0}
+.tile .lb{font-size:12px;color:var(--mute);letter-spacing:.1em}
+.tile .v{font-family:var(--serif);font-weight:700;font-size:17px;color:var(--kin);overflow-wrap:anywhere;line-height:1.4;margin-top:2px}
+.tile .s{font-size:12px;color:var(--mute)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line);font-size:14px}
+th{font-weight:500;color:var(--mute);font-size:12px;background:var(--panel2);letter-spacing:.06em}
+td.l,th.l{text-align:left}
+td.nm{font-family:var(--serif);font-weight:700}
+tr:last-child td{border-bottom:0}
+.rk1 td:first-child{color:var(--kin);font-weight:700}
+.dim td{color:var(--mute)}
+.mx th,.mx td{text-align:center;padding:6px 4px;min-width:36px;font-size:13px}
+.mx th.vh{vertical-align:bottom;padding:8px 4px}
+.mx th.vh span{writing-mode:vertical-rl;letter-spacing:.1em;font-family:var(--serif);color:var(--washi);font-size:13px}
+.mx th.rl,.mx td.rl{position:sticky;left:0;background:var(--panel2);text-align:left;font-family:var(--serif);font-weight:700;color:var(--washi);padding:6px 10px;z-index:1;border-right:1px solid var(--line)}
+.mx td.adv{color:var(--kin);background:var(--kin-soft);font-weight:700}
+.mx td.dis{color:var(--shu)}
+.mx td.eq{color:var(--washi)}
+.mx td.no{color:#4a4a50}
+.mx td.self{background:repeating-linear-gradient(135deg,var(--panel2) 0 4px,var(--sumi) 4px 8px)}
+.hdate{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.hgroup+.hgroup{margin-top:14px}
+.hgroup h3{margin:0 0 6px;font-family:var(--serif);font-size:15px;font-weight:700;letter-spacing:.08em}
+.hrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:3px;background:var(--panel2)}
+.hrow+.hrow{margin-top:6px}
+.hno{font-size:12px;color:var(--mute);white-space:nowrap}
+.hpair{font-family:var(--serif);font-weight:700;overflow-wrap:anywhere}
+.hpair .w{color:var(--kin)}
+.hpair .lo{color:var(--mute);font-weight:500}
+.hpair i{font-style:normal;color:var(--mute);margin:0 6px;font-size:12px}
+.hres{font-size:12px;color:var(--matsu);white-space:nowrap}
+
+/* modal + toast */
+#modal{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:16px}
+#modal .box{width:min(92vw,380px);background:var(--panel);border:1px solid var(--kin);border-radius:4px;padding:18px}
+#modal p{margin:0 0 16px;white-space:pre-line}
+#modal .acts{display:flex;gap:8px;justify-content:flex-end}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:70;max-width:min(92vw,420px);background:var(--panel2);border:1px solid var(--kin);color:var(--washi);padding:10px 16px;border-radius:4px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.6);text-align:center}
+[hidden]{display:none!important}
+html,body{margin:0}
+</style></head><body>
+
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <span class="mon" aria-hidden="true">百</span>
+      <h1>百人一首 対戦帳</h1>
+      <span class="note" id="saveNote">自動保存</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="ページ切り替え">
+      <button class="tab" role="tab" data-act="tab" data-i="0" id="tab0">対戦作成</button>
+      <button class="tab" role="tab" data-act="tab" data-i="1" id="tab1">対戦カード</button>
+      <button class="tab" role="tab" data-act="tab" data-i="2" id="tab2">メンバー管理</button>
+      <button class="tab" role="tab" data-act="tab" data-i="3" id="tab3">個人成績・<wbr>ランキング</button>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="page" id="p0" role="tabpanel" aria-labelledby="tab0"></section>
+    <section class="page" id="p1" role="tabpanel" aria-labelledby="tab1" hidden></section>
+    <section class="page" id="p2" role="tabpanel" aria-labelledby="tab2" hidden></section>
+    <section class="page" id="p3" role="tabpanel" aria-labelledby="tab3" hidden></section>
+  </main>
+</div>
+<div id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalMsg">
+  <div class="box">
+    <p id="modalMsg"></p>
+    <div class="acts">
+      <button class="btn" id="modalNo">キャンセル</button>
+      <button class="btn pri" id="modalYes">削除する</button>
+    </div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<input type="file" id="xlFile" accept=".xlsx,.xls,.csv" hidden>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function(){
+'use strict';
+var KEY='hyakunin-taisen-v1';
+var GRADES=['A級','B級','C級','D級','E級','初心者'];
+var FORBID={'0-3':1,'0-4':1,'0-5':1,'1-4':1,'1-5':1,'2-5':1,'3-5':1};
+var TRASH='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
+var $=function(s){return document.querySelector(s)};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+var pad=function(n){return String(n).padStart(2,'0')};
+var storageOk=true;
+var S=null, sel=null, editing=null, histDate=null;
+var rk={period:'month',sort:'wins'};
+var pages=[$('#p0'),$('#p1'),$('#p2'),$('#p3')];
+
+/* ---------- state ---------- */
+function defaults(){return {members:[],attend:{},ng:[],fixed:['',''],current:null,history:[],byeLog:[],uid:1,tab:0};}
+function nid(p){return p+(S.uid++);}
+function load(){
+  try{
+    var raw=localStorage.getItem(KEY);
+    if(raw){var o=JSON.parse(raw);S=Object.assign(defaults(),o);return true;}
+  }catch(e){storageOk=false;}
+  return false;
+}
+function save(){
+  try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){storageOk=false;}
+  updateNote();
+}
+function updateNote(){
+  var n=$('#saveNote');
+  n.textContent=storageOk?'自動保存':'※この環境では保存されません';
+  n.className='note'+(storageOk?'':' warn');
+}
+function seed(){
+  S=defaults();
+  var demo=[['青山 結衣','A級'],['石川 蓮','B級'],['井上 陽菜','B級'],['加藤 大和','C級'],['木村 楓','C級'],['中村 凛','D級'],['佐藤 悠真','D級'],['田中 美月','E級'],['山本 湊','初心者'],['小林 颯','初心者']];
+  demo.forEach(function(d){var id=nid('m');S.members.push({id:id,name:d[0],grade:d[1],paused:false,sample:true});S.attend[id]=true;});
+}
+try{localStorage.setItem(KEY+'-t','1');localStorage.removeItem(KEY+'-t');}catch(e){storageOk=false;}
+if(!load())seed();
+if(!Array.isArray(S.fixed)||S.fixed.length<2)S.fixed=['',''];
+if(!(S.tab>=0&&S.tab<=3))S.tab=0;
+
+/* ---------- helpers ---------- */
+function today(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function parseD(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function inPeriod(ds,p){
+  if(p==='all')return true;
+  var now=new Date();
+  if(p==='today')return ds===today();
+  var d=parseD(ds);
+  if(p==='month')return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();
+  if(p==='week'){
+    var off=(now.getDay()+6)%7;
+    var st=new Date(now.getFullYear(),now.getMonth(),now.getDate()-off);
+    var en=new Date(st.getFullYear(),st.getMonth(),st.getDate()+7);
+    return d>=st&&d<en;
+  }
+  return true;
+}
+function gi(g){return GRADES.indexOf(g);}
+function badge(g){var i=gi(g);return g?'<span class="gr g'+(i<0?5:i)+'">'+esc(g)+'</span>':'';}
+function mById(id){for(var i=0;i<S.members.length;i++)if(S.members[i].id===id)return S.members[i];return null;}
+function activeMembers(){return S.members.filter(function(m){return !m.paused;});}
+function sortG(arr){return arr.slice().sort(function(a,b){return gi(a.grade)-gi(b.grade);});}
+function pl(id,sn,sg){var m=mById(id);return m?{n:m.name,g:m.grade}:{n:sn||'(削除済み)',g:sg||''};}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function pk(a,b){return a<b?a+'|'+b:b+'|'+a;}
+function sameNG(a,b){return S.ng.some(function(g){return g.ids.indexOf(a)>=0&&g.ids.indexOf(b)>=0;});}
+function pct(r){return (r*100).toFixed(1)+'%';}
+
+var toastT=null;
+function toast(msg){
+  var t=$('#toast');t.textContent=msg;t.hidden=false;
+  clearTimeout(toastT);toastT=setTimeout(function(){t.hidden=true;},3200);
+}
+var modalFn=null;
+function ask(msg,yes,fn){
+  $('#modalMsg').textContent=msg;$('#modalYes').textContent=yes||'削除する';
+  modalFn=fn;$('#modal').hidden=false;$('#modalNo').focus();
+}
+function closeModal(){$('#modal').hidden=true;modalFn=null;}
+$('#modalNo').addEventListener('click',closeModal);
+$('#modalYes').addEventListener('click',function(){var f=modalFn;closeModal();if(f)f();});
+
+/* ---------- stats ---------- */
+function stats(period){
+  var map={};
+  S.members.forEach(function(m){map[m.id]={m:m,games:0,wins:0,losses:0,byes:0,rate:0};});
+  S.history.forEach(function(h){
+    if(!h.winner||!inPeriod(h.date,period))return;
+    var lo=h.winner===h.a?h.b:h.a;
+    if(map[h.a])map[h.a].games++;
+    if(map[h.b])map[h.b].games++;
+    if(map[h.winner])map[h.winner].wins++;
+    if(map[lo])map[lo].losses++;
+  });
+  S.byeLog.forEach(function(b){if(map[b.id]&&inPeriod(b.date,period))map[b.id].byes++;});
+  Object.keys(map).forEach(function(k){var r=map[k];r.rate=r.games?r.wins/r.games:0;});
+  return map;
+}
+
+/* ---------- auto matching ---------- */
+function syncByeLog(){
+  var c=S.current;if(!c)return;
+  S.byeLog=S.byeLog.filter(function(b){return b.round!==c.round;});
+  c.byes.forEach(function(id){var p=pl(id);S.byeLog.push({round:c.round,date:c.date,id:id,n:p.n,g:p.g});});
+}
+function newRoundNumber(){
+  var c=S.current;
+  if(c&&!c.matches.some(function(m){return m.winner;})){
+    S.byeLog=S.byeLog.filter(function(b){return b.round!==c.round;});
+    return c.round;
+  }
+  var mx=0;
+  S.history.forEach(function(h){mx=Math.max(mx,h.round||0);});
+  S.byeLog.forEach(function(b){mx=Math.max(mx,b.round||0);});
+  if(c)mx=Math.max(mx,c.round);
+  return mx+1;
+}
+function solve(list,cost){
+  var n=list.length;
+  if(n===0)return {pairs:[],cost:0};
+  var best=null,tries=n<=12?100:220;
+  for(var t=0;t<tries;t++){
+    var left=shuffle(list.slice()),prs=[];
+    while(left.length){
+      var a=left.shift(),bi=0,bc=Infinity;
+      for(var i=0;i<left.length;i++){var c=cost(a,left[i])+Math.random()*25;if(c<bc){bc=c;bi=i;}}
+      prs.push([a,left.splice(bi,1)[0]]);
+    }
+    var imp=true,guard=0;
+    while(imp&&guard++<60){
+      imp=false;
+      for(var i2=0;i2<prs.length;i2++)for(var j=i2+1;j<prs.length;j++){
+        var a1=prs[i2][0],b1=prs[i2][1],c1=prs[j][0],d1=prs[j][1];
+        var cur=cost(a1,b1)+cost(c1,d1),o1=cost(a1,c1)+cost(b1,d1),o2=cost(a1,d1)+cost(b1,c1);
+        if(o1<cur-1e-9&&o1<=o2){prs[i2]=[a1,c1];prs[j]=[b1,d1];imp=true;}
+        else if(o2<cur-1e-9){prs[i2]=[a1,d1];prs[j]=[b1,c1];imp=true;}
+      }
+    }
+    var tot=prs.reduce(function(s,p){return s+cost(p[0],p[1]);},0);
+    if(!best||tot<best.cost)best={pairs:prs,cost:tot};
+  }
+  return best;
+}
+function generate(){
+  var part=activeMembers().filter(function(m){return S.attend[m.id];});
+  if(part.length<2){toast('参加メンバーを2名以上選んでください');return;}
+  var round=newRoundNumber();
+  var idset={};part.forEach(function(m){idset[m.id]=1;});
+  var fx=[];S.fixed.forEach(function(id){if(id&&idset[id]&&fx.indexOf(id)<0)fx.push(id);});
+  var fixedPairs=[],byes=[],notes=[];
+  if(fx.length===1)byes.push(fx[0]);
+  else{
+    for(var i=0;i+1<fx.length;i+=2)fixedPairs.push([fx[i],fx[i+1]]);
+    if(fx.length%2===1)byes.push(fx[fx.length-1]);
+  }
+  var fset={};fx.forEach(function(id){fset[id]=1;});
+  var rem=part.map(function(m){return m.id;}).filter(function(id){return !fset[id];});
+
+  var st=stats('all');
+  var meet={};
+  S.history.forEach(function(h){if(!h.winner)return;var k=pk(h.a,h.b);(meet[k]=meet[k]||[]).push(h.round||0);});
+  function rate(id){var r=st[id];return r&&r.games?r.wins/r.games:0.5;}
+  function cost(a,b){
+    var c=0;
+    if(sameNG(a,b))c+=1e6;
+    var ga=gi(mById(a).grade),gb=gi(mById(b).grade);
+    c+=Math.abs(ga-gb)*40;
+    if(FORBID[Math.min(ga,gb)+'-'+Math.max(ga,gb)])c+=400;
+    c+=Math.abs(rate(a)-rate(b))*60;
+    var ms=meet[pk(a,b)];
+    if(ms)ms.forEach(function(r){var ago=Math.max(1,round-r);if(ago<=2)c+=20000;c+=80+Math.max(0,120-15*ago);});
+    return c;
+  }
+  var cache={};
+  function ccost(a,b){var k=pk(a,b);if(cache[k]===undefined)cache[k]=cost(a,b);return cache[k];}
+
+  var res=null,chosen=null;
+  if(rem.length%2===1){
+    var last={};S.byeLog.forEach(function(b){if(b.round===round-1)last[b.id]=1;});
+    var cnt={};S.byeLog.forEach(function(b){cnt[b.id]=(cnt[b.id]||0)+1;});
+    var cand=rem.slice().sort(function(x,y){
+      var lx=last[x]?1:0,ly=last[y]?1:0;if(lx!==ly)return lx-ly;
+      var gx=gi(mById(x).grade),gy=gi(mById(y).grade);if(gx!==gy)return gy-gx;
+      var bx=cnt[x]||0,by=cnt[y]||0;if(bx!==by)return bx-by;
+      return Math.random()-0.5;
+    }).slice(0,6);
+    for(var k=0;k<cand.length;k++){
+      var rest=rem.filter(function(id){return id!==cand[k];});
+      var r=solve(rest,ccost);
+      if(!res||r.cost<res.cost){res=r;chosen=cand[k];}
+      if(r.cost<20000){res=r;chosen=cand[k];break;}
+    }
+    byes.push(chosen);
+  }else{
+    res=solve(rem,ccost);
+  }
+  var solved=[];
+  res.pairs.forEach(function(p){
+    if(sameNG(p[0],p[1])){byes.push(p[0],p[1]);notes.push('NGの組合せを避けられず2名を1人取りにしました');}
+    else solved.push(p);
+  });
+  function sg(p){return gi(mById(p[0]).grade)+gi(mById(p[1]).grade);}
+  solved.sort(function(a,b){return sg(a)-sg(b);});
+  function orient(p){return gi(mById(p[0]).grade)<=gi(mById(p[1]).grade)?p:[p[1],p[0]];}
+  var matches=fixedPairs.concat(solved.map(orient)).map(function(p){
+    var A=mById(p[0]),B=mById(p[1]);
+    return {id:nid('x'),a:p[0],b:p[1],an:A.name,ag:A.grade,bn:B.name,bg:B.grade,winner:null};
+  });
+  S.current={round:round,date:today(),matches:matches,byes:byes};
+  syncByeLog();
+  sel=null;
+  save();
+  show(1);
+  toast(matches.length+'カードを作成しました'+(notes.length?'。'+notes[0]:''));
+}
+
+/* ---------- cards ---------- */
+function matchById(id){var c=S.current;if(!c)return null;for(var i=0;i<c.matches.length;i++)if(c.matches[i].id===id)return c.matches[i];return null;}
+function getP(s){return s.k==='m'?matchById(s.mid)[s.side]:S.current.byes[s.i];}
+function setP(s,id){if(s.k==='m')matchById(s.mid)[s.side]=id;else S.current.byes[s.i]=id;}
+function sameSel(a,b){return a.k===b.k&&(a.k==='m'?(a.mid===b.mid&&a.side===b.side):a.i===b.i);}
+function refreshSnaps(){
+  S.current.matches.forEach(function(m){
+    if(m.winner)return;
+    var A=mById(m.a),B=mById(m.b);
+    if(A){m.an=A.name;m.ag=A.grade;}
+    if(B){m.bn=B.name;m.bg=B.grade;}
+  });
+}
+function pick(ds){
+  if(!S.current)return;
+  var s=ds.k==='m'?{k:'m',mid:ds.mid,side:ds.side}:{k:'b',i:+ds.i};
+  if(!sel){sel=s;render();return;}
+  if(sameSel(sel,s)){sel=null;render();return;}
+  var bad=[sel,s].some(function(x){return x.k==='m'&&matchById(x.mid).winner;});
+  if(bad){toast('勝敗が記録された対戦は入れ替えできません。勝利ボタンをもう一度押して取り消してください');sel=null;render();return;}
+  var a=getP(sel),b=getP(s);
+  setP(sel,b);setP(s,a);
+  refreshSnaps();syncByeLog();
+  var warn=S.current.matches.some(function(m){return !m.winner&&sameNG(m.a,m.b);});
+  sel=null;save();render();
+  toast(warn?'入れ替えました。NGグループの組合せが含まれています':'入れ替えました');
+}
+function setWinner(mid,pid){
+  var m=matchById(mid);if(!m)return;
+  var c=S.current;
+  if(m.winner===pid){
+    m.winner=null;
+    S.history=S.history.filter(function(h){return h.id!==m.id;});
+  }else{
+    m.winner=pid;
+    S.history=S.history.filter(function(h){return h.id!==m.id;});
+    var A=pl(m.a,m.an,m.ag),B=pl(m.b,m.bn,m.bg);
+    S.history.push({id:m.id,round:c.round,date:c.date,a:m.a,b:m.b,an:A.n,ag:A.g,bn:B.n,bg:B.g,winner:pid});
+  }
+  save();render();
+}
+
+/* ---------- members ---------- */
+function removeMember(id){
+  S.members=S.members.filter(function(m){return m.id!==id;});
+  delete S.attend[id];
+  S.fixed=S.fixed.map(function(x){return x===id?'':x;});
+  S.ng.forEach(function(g){g.ids=g.ids.filter(function(x){return x!==id;});});
+  var c=S.current;
+  if(c){
+    c.byes=c.byes.filter(function(x){return x!==id;});
+    c.matches=c.matches.filter(function(m){
+      if(m.winner||(m.a!==id&&m.b!==id))return true;
+      c.byes.push(m.a===id?m.b:m.a);
+      return false;
+    });
+    syncByeLog();
+  }
+}
+
+/* ---------- excel ---------- */
+function normGrade(v){
+  var s=String(v==null?'':v).normalize('NFKC').trim().toUpperCase().replace('級','');
+  if(['A','B','C','D','E'].indexOf(s)>=0)return s+'級';
+  if(s.indexOf('初')>=0)return '初心者';
+  return null;
+}
+function normDate(v){
+  if(typeof v==='number'){var d=new Date(Math.round((v-25569)*864e5));return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate());}
+  var m=String(v).trim().match(/^(\d{4})[-\/.年](\d{1,2})[-\/.月](\d{1,2})/);
+  return m?m[1]+'-'+pad(+m[2])+'-'+pad(+m[3]):null;
+}
+async function exportXlsx(){
+  if(!window.XLSX){toast('Excel機能を読み込めませんでした。通信状況を確認してください');return;}
+  var st=stats('all');
+  var wb=XLSX.utils.book_new();
+  var mem=S.members.map(function(m){return {'名前':m.name,'級':m.grade,'状態':m.paused?'休止':'参加可'};});
+  var sc=sortG(S.members).map(function(m){var r=st[m.id];return {'名前':m.name,'級':m.grade,'試合数':r.games,'勝利数':r.wins,'敗北数':r.losses,'勝率(%)':r.games?Math.round(r.rate*1000)/10:0,'1人取り':r.byes};});
+  var hist=S.history.filter(function(h){return h.winner;}).slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:(a.round-b.round);}).map(function(h){
+    var A=pl(h.a,h.an,h.ag),B=pl(h.b,h.bn,h.bg),W=pl(h.winner,h.winner===h.a?h.an:h.bn);
+    return {'日付':h.date,'回':h.round,'選手A':A.n,'級A':A.g,'選手B':B.n,'級B':B.g,'勝者':W.n};
+  });
+  var byes=S.byeLog.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:(a.round-b.round);}).map(function(b){var p=pl(b.id,b.n,b.g);return {'日付':b.date,'回':b.round,'名前':p.n,'級':p.g};});
+  var ng=S.ng.map(function(g){return {'グループ名':g.name,'メンバー':g.ids.map(function(id){var m=mById(id);return m?m.name:'';}).filter(Boolean).join('、')};});
+  function add(rows,name,head){
+    var ws=rows.length?XLSX.utils.json_to_sheet(rows):XLSX.utils.aoa_to_sheet([head]);
+    XLSX.utils.book_append_sheet(wb,ws,name);
+  }
+  add(mem,'メンバー',['名前','級','状態']);
+  add(sc,'個人成績',['名前','級','試合数','勝利数','敗北数','勝率(%)','1人取り']);
+  add(hist,'対戦履歴',['日付','回','選手A','級A','選手B','級B','勝者']);
+  add(byes,'1人取り',['日付','回','名前','級']);
+  add(ng,'NGグループ',['グループ名','メンバー']);
+  var out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  var dl=null;
+  try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null;}catch(e){dl=null;}
+  if(!dl){
+    try{
+      var blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      var url=URL.createObjectURL(blob),a=document.createElement('a');
+      a.href=url;a.download='百人一首_メンバーと成績_'+today()+'.xlsx';
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(function(){URL.revokeObjectURL(url);},4000);
+      toast('Excelファイルを出力しました');
+    }catch(e){toast('この画面ではファイルを保存できません');}
+    return;
+  }
+  try{
+    await dl.save({filename:'百人一首_メンバーと成績_'+today()+'.xlsx',data:new Uint8Array(out)});
+    toast('Excelファイルを保存しました');
+  }catch(e){
+    toast(e&&e.code==='declined'?'保存を取りやめました':'保存できませんでした');
+  }
+}
+function importWb(wb){
+  var get=function(n){return wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:''}):null;};
+  var rows=get('メンバー');
+  if(!rows){var f=get(wb.SheetNames[0])||[];if(f.length&&('名前' in f[0]))rows=f;}
+  rows=rows||[];
+  var addedM=0,addedH=0,addedB=0;
+  var byName=function(){var o={};S.members.forEach(function(m){o[m.name]=m;});return o;};
+  rows.forEach(function(r){
+    var name=String(r['名前']||'').trim();if(!name)return;
+    var g=normGrade(r['級'])||'初心者';
+    var ex=byName()[name];
+    if(ex){ex.grade=g;return;}
+    var id=nid('m');
+    var paused=String(r['状態']||'').indexOf('休')>=0;
+    S.members.push({id:id,name:name,grade:g,paused:paused});
+    S.attend[id]=!paused;addedM++;
+  });
+  function ensure(name,g){
+    name=String(name||'').trim();if(!name)return null;
+    var ex=byName()[name];if(ex)return ex.id;
+    var id=nid('m');
+    S.members.push({id:id,name:name,grade:normGrade(g)||'初心者',paused:true});
+    S.attend[id]=false;addedM++;return id;
+  }
+  var hs=get('対戦履歴')||[];
+  var seen={};
+  S.history.forEach(function(h){seen[h.date+'|'+h.round+'|'+pk(h.a,h.b)+'|'+h.winner]=1;});
+  hs.forEach(function(r){
+    var d=normDate(r['日付']);if(!d)return;
+    var a=ensure(r['選手A'],r['級A']),b=ensure(r['選手B'],r['級B']);
+    if(!a||!b||a===b)return;
+    var wn=String(r['勝者']||'').trim(),w=null;
+    if(wn===mById(a).name)w=a;else if(wn===mById(b).name)w=b;
+    if(!w)return;
+    var round=parseInt(r['回'],10)||1;
+    var key=d+'|'+round+'|'+pk(a,b)+'|'+w;
+    if(seen[key])return;seen[key]=1;
+    var A=mById(a),B=mById(b);
+    S.history.push({id:nid('h'),round:round,date:d,a:a,b:b,an:A.name,ag:A.grade,bn:B.name,bg:B.grade,winner:w});addedH++;
+  });
+  var bs=get('1人取り')||[];
+  var bseen={};S.byeLog.forEach(function(b){bseen[b.date+'|'+b.round+'|'+b.id]=1;});
+  bs.forEach(function(r){
+    var d=normDate(r['日付']);if(!d)return;
+    var id=ensure(r['名前'],r['級']);if(!id)return;
+    var round=parseInt(r['回'],10)||1;
+    var key=d+'|'+round+'|'+id;if(bseen[key])return;bseen[key]=1;
+    var p=pl(id);S.byeLog.push({round:round,date:d,id:id,n:p.n,g:p.g});addedB++;
+  });
+  var ngs=get('NGグループ')||[];
+  ngs.forEach(function(r){
+    var gn=String(r['グループ名']||'').trim();
+    var ids=String(r['メンバー']||'').split(/[、,，]/).map(function(s){return s.trim();}).filter(Boolean).map(function(n){var m=byName()[n];return m?m.id:null;}).filter(Boolean);
+    if(!ids.length)return;
+    var dup=S.ng.some(function(g){return g.ids.slice().sort().join()===ids.slice().sort().join();});
+    if(!dup)S.ng.push({id:nid('g'),name:gn||('NGグループ'+(S.ng.length+1)),ids:ids});
+  });
+  if(addedM||addedH)S.members.forEach(function(m){if(m.sample&&(addedM>0))m.sample=false;});
+  save();render();
+  toast('取り込み完了：メンバー'+addedM+'名、対戦'+addedH+'件、1人取り'+addedB+'件を追加しました');
+}
+function onFile(file){
+  if(!file)return;
+  if(!window.XLSX){toast('Excel機能を読み込めませんでした。通信状況を確認してください');return;}
+  var fr=new FileReader();
+  fr.onload=function(){
+    try{importWb(XLSX.read(new Uint8Array(fr.result),{type:'array'}));}
+    catch(e){toast('ファイルを読み込めませんでした。形式を確認してください');}
+  };
+  fr.onerror=function(){toast('ファイルを読み込めませんでした');};
+  fr.readAsArrayBuffer(file);
+}
+
+/* ---------- page builders ---------- */
+function pageCreate(){
+  var act=sortG(activeMembers());
+  var att=act.filter(function(m){return S.attend[m.id];});
+  var aset={};att.forEach(function(m){aset[m.id]=1;});
+  var h='';
+  if(S.members.some(function(m){return m.sample;})){
+    h+='<div class="notice"><span>表示中のメンバーは試し用の見本です。自分の会のメンバーを登録する前に消去できます。</span><button class="btn sm" data-act="clear-sample">見本を消去して始める</button></div>';
+  }
+  h+='<section class="panel"><div class="ph"><h2>本日の参加メンバー</h2><div class="ph-r"><span class="count">参加 <b>'+att.length+'</b> / '+act.length+'名</span><button class="btn sm" data-act="att-all">全員選択</button><button class="btn sm" data-act="att-none">全員解除</button></div></div>';
+  if(!act.length)h+='<div class="empty">メンバーがいません。「メンバー管理」で登録してください。</div>';
+  else h+='<div class="attgrid">'+act.map(function(m){
+    return '<label class="att"><input type="checkbox" data-att="'+m.id+'"'+(S.attend[m.id]?' checked':'')+'><span class="nm">'+esc(m.name)+'</span>'+badge(m.grade)+'</label>';
+  }).join('')+'</div>';
+  h+='</section>';
+
+  h+='<section class="panel"><div class="ph"><h2>固定枠の指定</h2><div class="ph-r"><button class="btn sm" data-act="fix-add">＋追加</button><button class="btn sm" data-act="fix-clear">固定をクリア</button></div></div><div class="fixgrid">';
+  S.fixed.forEach(function(cur,i){
+    h+='<select data-fixslot="'+i+'" aria-label="固定枠'+(i+1)+'"><option value="">選手を選択</option>';
+    att.forEach(function(m){
+      if(m.id!==cur&&S.fixed.indexOf(m.id)>=0)return;
+      h+='<option value="'+m.id+'"'+(m.id===cur?' selected':'')+'>'+esc(m.name)+'（'+esc(m.grade)+'）</option>';
+    });
+    h+='</select>';
+  });
+  h+='</div>';
+  var fx=S.fixed.filter(function(id,i){return id&&aset[id]&&S.fixed.indexOf(id)===i;});
+  var nm=function(id){return esc(mById(id).name);};
+  var parts=[];
+  for(var i=0;i+1<fx.length;i+=2)parts.push(nm(fx[i])+' ― '+nm(fx[i+1]));
+  var by=fx.length%2===1?nm(fx[fx.length-1]):null;
+  h+='<p class="fixnote">'+(fx.length?('固定の対戦：'+(parts.join('、')||'なし')+(by?'　／　1人取り：'+by:'')):'1名＝1人取り確定、2名＝その2人で対戦、3名以上は上から2人ずつ対戦固定（奇数なら最後の1人が1人取り）。')+'</p></section>';
+  h+='<div style="margin-top:14px"><button class="btn pri big" data-act="generate">自動対戦組合せ</button></div>';
+  return h;
+}
+
+function pageCards(){
+  var c=S.current;
+  if(!c||(!c.matches.length&&!c.byes.length)){
+    return '<section class="panel"><div class="empty">対戦カードはまだありません。<br>「対戦作成」で参加メンバーを選び、自動対戦組合せを押してください。<br><br><button class="btn pri" data-act="tab" data-i="0">対戦作成へ</button></div></section>';
+  }
+  var done=c.matches.filter(function(m){return m.winner;}).length;
+  var h='<div class="progress"><span>'+esc(c.date)+'　'+(c.matches.length?'終了 <b>'+done+'</b> / '+c.matches.length+'カード':'')+'</span><span>名前の枠を2か所タップすると入れ替えできます</span></div><div class="cards">';
+  c.matches.forEach(function(m,i){
+    var A=pl(m.a,m.an,m.ag),B=pl(m.b,m.bn,m.bg),fin=!!m.winner;
+    var side=function(key,P,id){
+      var won=m.winner===id,lost=fin&&!won;
+      var isSel=sel&&sel.k==='m'&&sel.mid===m.id&&sel.side===key;
+      return '<div class="pcell'+(won?' won':'')+(lost?' lost':'')+'"><div class="slot'+(isSel?' sel':'')+'" role="button" tabindex="0" data-act="pick" data-k="m" data-mid="'+m.id+'" data-side="'+key+'" aria-label="'+esc(P.n)+'を入れ替え対象にする"><span class="nm">'+esc(P.n)+'</span>'+badge(P.g)+'</div><button class="btn win'+(won?' on':'')+'" data-act="win" data-mid="'+m.id+'" data-pid="'+id+'"'+(lost?' disabled':'')+(won?' aria-pressed="true" title="もう一度押すと取り消し"':'')+'>'+(lost?'負け':'勝利')+'</button></div>';
+    };
+    h+='<article class="mcard"><div class="mhead"><span class="mt">第'+(i+1)+'カード</span><span class="chip '+(fin?'done':'live')+'">'+(fin?'試合終了・記録済み':'試合中')+'</span></div><div class="mbody">'+side('a',A,m.a)+'<span class="vs">対</span>'+side('b',B,m.b)+'</div></article>';
+  });
+  h+='</div>';
+  if(c.byes.length){
+    h+='<section class="panel"><div class="ph"><h2>1人取り</h2></div><div class="byes">'+c.byes.map(function(id,i){
+      var P=pl(id);var isSel=sel&&sel.k==='b'&&sel.i===i;
+      return '<div class="slot'+(isSel?' sel':'')+'" role="button" tabindex="0" data-act="pick" data-k="b" data-i="'+i+'"><span class="nm">'+esc(P.n)+'</span>'+badge(P.g)+'</div>';
+    }).join('')+'</div></section>';
+  }
+  if(c.matches.length&&done===c.matches.length){
+    h+='<div style="margin-top:14px"><button class="btn pri big" data-act="next">次の試合へ</button></div>';
+  }
+  h+='<p class="hint">勝利ボタンを押した人が勝者として記録されます。もう一度押すと取り消せます。</p>';
+  return h;
+}
+
+function pageMembers(){
+  var act=sortG(activeMembers()),paused=S.members.filter(function(m){return m.paused;});
+  var h='<section class="panel"><div class="ph"><h2>Excelから一括登録・データ保存</h2></div><div class="xl"><button class="btn" data-act="xl-in">Excelからファイルを取り込む</button><button class="btn" data-act="xl-out">メンバーリストをExcelに出力</button></div><p class="hint">出力には名前・級・個人成績・対戦履歴がすべて入ります。取り込むとメンバーと対戦履歴が追加されます。</p></section>';
+  h+='<section class="panel"><div class="ph"><h2>メンバーを追加</h2></div><div class="row"><input type="text" id="newName" class="grow" placeholder="名前を入力" maxlength="20" autocomplete="off" aria-label="名前"><select id="newGrade" aria-label="級">'+GRADES.map(function(g,i){return '<option'+(i===5?' selected':'')+'>'+g+'</option>';}).join('')+'</select><button class="btn pri" data-act="m-add">リストに追加</button></div></section>';
+  h+='<section class="panel"><div class="ph"><h2>対戦NGグループ</h2><div class="ph-r"><button class="btn sm" data-act="ng-new">＋新しいNGグループを追加</button></div></div>';
+  if(!S.ng.length)h+='<p class="muted" style="margin:0">同じグループの人どうしは対戦しません。家族や同じ教室の人などを登録します。</p>';
+  S.ng.forEach(function(g){
+    var avail=sortG(S.members).filter(function(m){return g.ids.indexOf(m.id)<0;});
+    h+='<div class="ngbox"><div class="ngtop"><input type="text" id="ngn-'+g.id+'" data-ngname="'+g.id+'" value="'+esc(g.name)+'" maxlength="20" aria-label="グループ名"><button class="icon-btn" data-act="ng-del" data-id="'+g.id+'" aria-label="'+esc(g.name)+'を削除">'+TRASH+'</button></div><div class="chips">';
+    var chips=g.ids.map(function(id){var m=mById(id);return m?'<span class="mchip">'+esc(m.name)+badge(m.grade)+'<button data-act="ng-rm" data-id="'+g.id+'" data-mid="'+id+'" aria-label="'+esc(m.name)+'をグループから外す">×</button></span>':'';}).join('');
+    h+=(chips||'<span class="muted">メンバーがいません</span>')+'</div><div class="ngadd"><select id="ngs-'+g.id+'" aria-label="追加するメンバー"><option value="">メンバーを選択</option>'+avail.map(function(m){return '<option value="'+m.id+'">'+esc(m.name)+'（'+esc(m.grade)+'）</option>';}).join('')+'</select><button class="btn sm" data-act="ng-add" data-id="'+g.id+'">追加</button></div></div>';
+  });
+  h+='</section>';
+  h+='<section class="panel"><div class="ph"><h2>所属メンバー</h2><span class="count"><b>'+act.length+'</b>名</span></div>';
+  if(!act.length)h+='<div class="empty">メンバーがいません。上の欄から追加してください。</div>';
+  else h+='<div class="list">'+act.map(function(m){
+    if(editing===m.id){
+      return '<div class="mrow"><input type="text" id="editName" class="grow" value="'+esc(m.name)+'" maxlength="20" aria-label="名前"><select id="editGrade" aria-label="級">'+GRADES.map(function(g){return '<option'+(g===m.grade?' selected':'')+'>'+g+'</option>';}).join('')+'</select><div class="acts"><button class="btn sm pri" data-act="e-save" data-id="'+m.id+'">保存</button><button class="btn sm" data-act="e-cancel">キャンセル</button></div></div>';
+    }
+    return '<div class="mrow"><div class="who"><span class="nm">'+esc(m.name)+'</span>'+badge(m.grade)+(m.sample?'<span class="sample">見本</span>':'')+'</div><div class="acts"><button class="btn sm" data-act="e-start" data-id="'+m.id+'">編集</button><button class="btn sm" data-act="m-pause" data-id="'+m.id+'">休止</button><button class="icon-btn" data-act="m-del" data-id="'+m.id+'" aria-label="'+esc(m.name)+'を削除">'+TRASH+'</button></div></div>';
+  }).join('')+'</div>';
+  h+='</section>';
+  h+='<section class="panel"><div class="ph"><h2>休止欄</h2><span class="count"><b>'+paused.length+'</b>名</span></div>';
+  if(!paused.length)h+='<p class="muted" style="margin:0">休止中のメンバーはいません。</p>';
+  else h+='<div class="list">'+sortG(paused).map(function(m){
+    return '<div class="mrow"><div class="who"><span class="nm">'+esc(m.name)+'</span>'+badge(m.grade)+'</div><div class="acts"><button class="btn sm pri" data-act="m-resume" data-id="'+m.id+'">復帰</button><button class="icon-btn" data-act="m-del" data-id="'+m.id+'" aria-label="'+esc(m.name)+'を削除">'+TRASH+'</button></div></div>';
+  }).join('')+'</div>';
+  h+='</section>';
+  return h;
+}
+
+function pageRank(){
+  var st=stats(rk.period);
+  var rows=Object.keys(st).map(function(k){return st[k];});
+  var key=rk.sort==='wins'?'wins':rk.sort==='games'?'games':rk.sort==='rate'?'rate':'byes';
+  rows.sort(function(a,b){
+    return b[key]-a[key]||b.wins-a.wins||b.rate-a.rate||b.games-a.games||(a.m.name<b.m.name?-1:1);
+  });
+  function top(k){
+    var c=rows.filter(function(r){return k==='rate'?r.games>0:r[k]>0;});
+    if(!c.length)return null;
+    var mx=Math.max.apply(null,c.map(function(r){return r[k];}));
+    return {w:c.filter(function(r){return r[k]===mx;}),mx:mx};
+  }
+  function tile(label,k,fmt){
+    var t=top(k);
+    if(!t)return '<div class="tile"><div class="lb">'+label+'</div><div class="v">―</div><div class="s">記録なし</div></div>';
+    var names=t.w.slice(0,3).map(function(r){return esc(r.m.name);}).join('、')+(t.w.length>3?' ほか'+(t.w.length-3)+'名':'');
+    return '<div class="tile"><div class="lb">'+label+'</div><div class="v">'+names+'</div><div class="s">'+fmt(t.mx,t.w[0])+'</div></div>';
+  }
+  var seg=function(attr,items,cur){return '<div class="seg">'+items.map(function(x){return '<button data-act="'+attr+'" data-v="'+x[0]+'" aria-pressed="'+(cur===x[0])+'">'+x[1]+'</button>';}).join('')+'</div>';};
+  var h='<section class="panel"><div class="ph"><h2>個人成績・ランキング</h2></div>';
+  h+='<div class="ctl"><span class="lb">期間フィルター</span>'+seg('period',[['today','本日'],['week','今週'],['month','今月']],rk.period)+'</div>';
+  h+='<div class="ctl" style="margin-bottom:0"><span class="lb">並び替え</span>'+seg('sort',[['wins','勝利数'],['games','試合数'],['rate','勝率'],['byes','1人取り']],rk.sort)+'</div>';
+  h+='<div class="tiles">'+tile('最多勝利','wins',function(v){return v+'勝';})+tile('最多勝率','rate',function(v,r){return pct(v)+'（'+r.wins+'勝'+r.games+'戦）';})+tile('最多試合数','games',function(v){return v+'試合';})+'</div>';
+  if(!rows.length)h+='<div class="empty">メンバーがいません。</div>';
+  else{
+    h+='<div class="tablewrap noswipe"><table><thead><tr><th class="l">順位</th><th class="l">名前</th><th class="l">級</th><th>試合</th><th>勝</th><th>負</th><th>勝率</th><th>1人取り</th></tr></thead><tbody>';
+    rows.forEach(function(r,i){
+      h+='<tr class="'+(i===0&&r[key]>0?'rk1':'')+(r.games===0&&r.byes===0?' dim':'')+'"><td class="l">'+(i+1)+'</td><td class="l nm">'+esc(r.m.name)+(r.m.paused?' <span class="sample">休止</span>':'')+'</td><td class="l">'+badge(r.m.grade)+'</td><td>'+r.games+'</td><td>'+r.wins+'</td><td>'+r.losses+'</td><td>'+(r.games?pct(r.rate):'―')+'</td><td>'+r.byes+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+  h+='</section>';
+
+  var ms=sortG(S.members);
+  h+='<section class="panel"><div class="ph"><h2>対戦マトリクス</h2><span class="muted">全期間・行の人から見た 勝-負</span></div>';
+  if(ms.length<2)h+='<div class="empty">メンバーが2名以上いると表示されます。</div>';
+  else{
+    var mx={};
+    S.history.forEach(function(x){
+      if(!x.winner)return;
+      var w=x.winner,l=x.winner===x.a?x.b:x.a;
+      (mx[w]=mx[w]||{});(mx[w][l]=mx[w][l]||{w:0,l:0}).w++;
+      (mx[l]=mx[l]||{});(mx[l][w]=mx[l][w]||{w:0,l:0}).l++;
+    });
+    h+='<div class="tablewrap noswipe"><table class="mx"><thead><tr><th class="rl"></th>'+ms.map(function(m){return '<th class="vh"><span>'+esc(m.name)+'</span></th>';}).join('')+'</tr></thead><tbody>';
+    ms.forEach(function(r){
+      h+='<tr><th class="rl">'+esc(r.name)+'</th>';
+      ms.forEach(function(c){
+        if(r.id===c.id){h+='<td class="self"></td>';return;}
+        var v=mx[r.id]&&mx[r.id][c.id];
+        if(!v)h+='<td class="no">·</td>';
+        else h+='<td class="'+(v.w>v.l?'adv':v.w<v.l?'dis':'eq')+'">'+v.w+'-'+v.l+'</td>';
+      });
+      h+='</tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+  h+='</section>';
+
+  h+='<section class="panel"><div class="ph"><h2>過去対戦一覧</h2></div>';
+  var dset={};S.history.forEach(function(x){if(x.winner)dset[x.date]=1;});
+  var dates=Object.keys(dset).sort().reverse();
+  if(!dates.length)h+='<div class="empty">まだ対戦履歴がありません。</div>';
+  else{
+    if(histDate!=='all'&&dates.indexOf(histDate)<0)histDate=dates[0];
+    h+='<div class="hdate"><label for="histSel" class="muted">日付</label><select id="histSel"><option value="all"'+(histDate==='all'?' selected':'')+'>すべての日付</option>'+dates.map(function(d){return '<option value="'+d+'"'+(d===histDate?' selected':'')+'>'+d+'</option>';}).join('')+'</select></div>';
+    var show=histDate==='all'?dates:[histDate];
+    show.forEach(function(d){
+      var hs=S.history.filter(function(x){return x.winner&&x.date===d;});
+      var rounds=[];hs.forEach(function(x){if(rounds.indexOf(x.round)<0)rounds.push(x.round);});
+      rounds.sort(function(a,b){return a-b;});
+      h+='<div class="hgroup"><h3>'+d+'</h3>';
+      rounds.forEach(function(rd,ri){
+        hs.filter(function(x){return x.round===rd;}).forEach(function(x){
+          var A=pl(x.a,x.an,x.ag),B=pl(x.b,x.bn,x.bg),aw=x.winner===x.a;
+          h+='<div class="hrow"><span class="hno">第'+(ri+1)+'戦</span><span class="hpair"><span class="'+(aw?'w':'lo')+'">'+esc(A.n)+'</span><i>対</i><span class="'+(aw?'lo':'w')+'">'+esc(B.n)+'</span></span><span class="hres">勝者 '+esc(aw?A.n:B.n)+'</span></div>';
+        });
+        S.byeLog.filter(function(b){return b.date===d&&b.round===rd;}).forEach(function(b){
+          var P=pl(b.id,b.n,b.g);
+          h+='<div class="hrow"><span class="hno">第'+(ri+1)+'戦</span><span class="hpair lo">'+esc(P.n)+'</span><span class="hres" style="color:var(--mute)">1人取り</span></div>';
+        });
+      });
+      h+='</div>';
+    });
+  }
+  h+='</section>';
+  return h;
+}
+
+/* ---------- render / tabs ---------- */
+var builders=[pageCreate,pageCards,pageMembers,pageRank];
+function render(){
+  var i=S.tab;
+  pages[i].innerHTML=builders[i]();
+}
+function show(i,dir){
+  i=Math.max(0,Math.min(3,i));
+  var prev=S.tab;S.tab=i;sel=null;editing=null;
+  for(var k=0;k<4;k++){
+    $('#tab'+k).setAttribute('aria-selected',k===i?'true':'false');
+    $('#tab'+k).tabIndex=k===i?0:-1;
+    pages[k].hidden=k!==i;
+  }
+  render();
+  var p=pages[i];
+  var d=dir!==undefined?dir:(i>prev?1:-1);
+  if(i!==prev){p.classList.remove('in-r','in-l');void p.offsetWidth;p.classList.add(d>0?'in-r':'in-l');}
+  window.scrollTo(0,0);
+  save();
+}
+
+/* ---------- actions ---------- */
+var ACT={
+  'tab':function(d){show(+d.i);},
+  'generate':generate,
+  'att-all':function(){activeMembers().forEach(function(m){S.attend[m.id]=true;});save();render();},
+  'att-none':function(){activeMembers().forEach(function(m){S.attend[m.id]=false;});S.fixed=S.fixed.map(function(){return '';});save();render();},
+  'fix-add':function(){if(S.fixed.length>=30)return;S.fixed.push('');save();render();},
+  'fix-clear':function(){S.fixed=['',''];save();render();toast('固定枠をクリアしました');},
+  'clear-sample':function(){
+    var ids=S.members.filter(function(m){return m.sample;}).map(function(m){return m.id;});
+    ids.forEach(removeMember);
+    S.history=S.history.filter(function(h){return ids.indexOf(h.a)<0&&ids.indexOf(h.b)<0;});
+    S.byeLog=S.byeLog.filter(function(b){return ids.indexOf(b.id)<0;});
+    S.current=null;
+    save();render();toast('見本を消去しました。メンバー管理から登録を始められます');
+  },
+  'pick':pick,
+  'win':function(d){setWinner(d.mid,d.pid);},
+  'next':function(){show(0,-1);toast('次の対戦を作成できます');},
+  'xl-in':function(){var f=$('#xlFile');f.value='';f.click();},
+  'xl-out':exportXlsx,
+  'm-add':function(){
+    var inp=$('#newName'),n=inp.value.trim(),g=$('#newGrade').value;
+    if(!n){toast('名前を入力してください');inp.focus();return;}
+    if(S.members.some(function(m){return m.name===n;})){toast('同じ名前のメンバーがすでにいます');inp.focus();return;}
+    var id=nid('m');S.members.push({id:id,name:n,grade:g,paused:false});S.attend[id]=true;
+    save();render();toast(n+'さんを追加しました');
+    var again=$('#newName');if(again)again.focus();
+  },
+  'ng-new':function(){S.ng.push({id:nid('g'),name:'NGグループ'+(S.ng.length+1),ids:[]});save();render();},
+  'ng-del':function(d){
+    var g=S.ng.filter(function(x){return x.id===d.id;})[0];if(!g)return;
+    ask('「'+g.name+'」を削除しますか？\nメンバー自身は削除されません。','削除する',function(){
+      S.ng=S.ng.filter(function(x){return x.id!==d.id;});save();render();toast('NGグループを削除しました');
+    });
+  },
+  'ng-add':function(d){
+    var sv=$('#ngs-'+d.id);if(!sv||!sv.value){toast('追加するメンバーを選んでください');return;}
+    var g=S.ng.filter(function(x){return x.id===d.id;})[0];if(!g)return;
+    if(g.ids.indexOf(sv.value)<0)g.ids.push(sv.value);
+    save();render();
+  },
+  'ng-rm':function(d){
+    var g=S.ng.filter(function(x){return x.id===d.id;})[0];if(!g)return;
+    g.ids=g.ids.filter(function(x){return x!==d.mid;});save();render();
+  },
+  'e-start':function(d){editing=d.id;render();var e=$('#editName');if(e){e.focus();e.select();}},
+  'e-cancel':function(){editing=null;render();},
+  'e-save':function(d){
+    var n=$('#editName').value.trim(),g=$('#editGrade').value;
+    if(!n){toast('名前を入力してください');return;}
+    if(S.members.some(function(m){return m.id!==d.id&&m.name===n;})){toast('同じ名前のメンバーがすでにいます');return;}
+    var m=mById(d.id);if(!m)return;
+    m.name=n;m.grade=g;m.sample=false;
+    if(S.current){refreshSnaps();S.byeLog.forEach(function(b){if(b.id===m.id){b.n=n;b.g=g;}});}
+    editing=null;save();render();toast('変更を保存しました');
+  },
+  'm-pause':function(d){
+    var m=mById(d.id);if(!m)return;
+    m.paused=true;S.attend[m.id]=false;
+    S.fixed=S.fixed.map(function(x){return x===m.id?'':x;});
+    if(editing===m.id)editing=null;
+    save();render();toast(m.name+'さんを休止欄に移しました');
+  },
+  'm-resume':function(d){
+    var m=mById(d.id);if(!m)return;
+    m.paused=false;S.attend[m.id]=true;save();render();toast(m.name+'さんが復帰しました');
+  },
+  'm-del':function(d){
+    var m=mById(d.id);if(!m)return;
+    ask(m.name+'さんを削除しますか？\nこの操作は元に戻せません。','削除する',function(){
+      removeMember(d.id);save();render();toast(m.name+'さんを削除しました');
+    });
+  },
+  'period':function(d){rk.period=d.v;render();},
+  'sort':function(d){rk.sort=d.v;render();}
+};
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-act]');
+  if(!t||t.disabled)return;
+  var f=ACT[t.dataset.act];
+  if(f)f(t.dataset,t,e);
+});
+document.addEventListener('change',function(e){
+  var t=e.target;
+  if(t.matches('[data-att]')){
+    S.attend[t.dataset.att]=t.checked;
+    if(!t.checked)S.fixed=S.fixed.map(function(x){return x===t.dataset.att?'':x;});
+    save();render();
+  }else if(t.matches('[data-fixslot]')){
+    S.fixed[+t.dataset.fixslot]=t.value;save();render();
+  }else if(t.matches('[data-ngname]')){
+    var g=S.ng.filter(function(x){return x.id===t.dataset.ngname;})[0];
+    if(g){g.name=t.value.trim()||g.name;save();}
+  }else if(t.id==='histSel'){
+    histDate=t.value;render();
+  }else if(t.id==='xlFile'){
+    onFile(t.files&&t.files[0]);
+  }
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&!$('#modal').hidden){closeModal();return;}
+  if(e.key==='Enter'){
+    if(e.target.id==='newName'){e.preventDefault();ACT['m-add']();}
+    else if(e.target.id==='editName'){e.preventDefault();var b=document.querySelector('[data-act=e-save]');if(b)ACT['e-save'](b.dataset);}
+  }
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches&&e.target.matches('.slot[data-act=pick]')){e.preventDefault();pick(e.target.dataset);}
+});
+
+/* swipe between tabs */
+var sx=0,sy=0,sOk=false;
+var mainEl=$('#main');
+mainEl.addEventListener('touchstart',function(e){
+  var t=e.touches[0];sx=t.clientX;sy=t.clientY;
+  sOk=e.touches.length===1&&!e.target.closest('.noswipe,input,select,textarea')&&$('#modal').hidden;
+},{passive:true});
+mainEl.addEventListener('touchend',function(e){
+  if(!sOk)return;sOk=false;
+  var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+  if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.6){
+    if(dx<0&&S.tab<3)show(S.tab+1,1);
+    else if(dx>0&&S.tab>0)show(S.tab-1,-1);
+  }
+},{passive:true});
+
+updateNote();
+show(S.tab,0);
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+</script>
+</body></html>
